@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
+import { GLOBAL_VALIDATION_PIPE_OPTIONS } from './common/pipes/validation-pipe.options';
 
 /**
  * Application bootstrap
@@ -41,22 +42,7 @@ async function bootstrap() {
   });
 
   // Global validation for incoming request DTOs.
-  app.useGlobalPipes(
-    new ValidationPipe({
-      // Removes properties that are not declared in the DTO.
-      whitelist: true,
-
-      // Rejects the request instead of silently removing unknown properties.
-      forbidNonWhitelisted: true,
-
-      // Converts incoming values to their expected DTO types when possible.
-      transform: true,
-
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
+  app.useGlobalPipes(new ValidationPipe(GLOBAL_VALIDATION_PIPE_OPTIONS));
 
   // Swagger / OpenAPI configuration.
   const swaggerConfig = new DocumentBuilder()

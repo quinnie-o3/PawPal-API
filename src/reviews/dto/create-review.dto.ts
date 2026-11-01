@@ -10,6 +10,7 @@ import {
   ApiProperty,
   ApiPropertyOptional,
 } from '@nestjs/swagger';
+import { toNumberIfNumericString } from '../../common/utils/strict-input.util';
 
 export class CreateReviewDto {
   @ApiProperty({
@@ -18,6 +19,7 @@ export class CreateReviewDto {
     maximum: 5,
     description: 'Rating from 1 to 5.',
   })
+  @Transform(({ value }) => toNumberIfNumericString(value))
   @IsInt()
   @Min(1)
   @Max(5)

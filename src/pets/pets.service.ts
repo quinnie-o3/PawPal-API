@@ -50,6 +50,25 @@ export class PetsService {
     return this.petsRepository.save(pet);
   }
 
+  /**
+   * Public read-only list of pet types available for selection.
+   *
+   * Only ACTIVE entries are returned, projected to `id` and `name`.
+   * Ordering is by name with an ID tie-breaker so results are deterministic.
+   */
+  async getActivePetTypes() {
+    const petTypes = await this.petTypesRepository.find({
+      select: { id: true, name: true },
+      where: { status: 'ACTIVE' },
+      order: { name: 'ASC', id: 'ASC' },
+    });
+
+    return petTypes.map((petType) => ({
+      id: petType.id,
+      name: petType.name,
+    }));
+  }
+
   async getMyPets(user: AuthenticatedUser) {
     return this.petsRepository.find({
       where: {

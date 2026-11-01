@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 
 import type { AuthenticatedUser } from '../auth/interfaces/authenticated-user.interface';
+import { assertStartTimeBeforeEndTime } from '../common/utils/time-of-day.util';
 import { User } from '../users/entities/user.entity';
 import { CreateProviderStaffDto } from './dto/create-provider-staff.dto';
 import { CreateProviderDto } from './dto/create-provider.dto';
@@ -685,10 +686,8 @@ private assertValidWorkingHourRange(
   startTime: string,
   endTime: string,
 ): void {
-  if (startTime >= endTime) {
-    throw new BadRequestException(
-      'startTime must be earlier than endTime',
-    );
-  }
+  // Request values use HH:mm while persisted TIME values use HH:mm:ss,
+  // so the range must be compared chronologically, not as strings.
+  assertStartTimeBeforeEndTime(startTime, endTime);
 }
 }

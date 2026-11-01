@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
 import { PetType } from './entities/pet-type.entity';
 import { Pet } from './entities/pet.entity';
+import { PetTypesController } from './pet-types.controller';
 import { PetsController } from './pets.controller';
 import { PetsService } from './pets.service';
 
@@ -15,7 +16,7 @@ import { PetsService } from './pets.service';
     ]),
     AuthModule,
   ],
-  controllers: [PetsController],
+  controllers: [PetsController, PetTypesController],
   providers: [PetsService],
   exports: [PetsService],
 })

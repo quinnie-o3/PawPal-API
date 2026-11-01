@@ -10,12 +10,14 @@ import {
 } from '@nestjs/swagger';
 
 import { isPostgresBigIntId } from '../../common/pipes/parse-bigint-id.pipe';
+import { toBigIntIdStringIfSafeInteger } from '../../common/utils/strict-input.util';
 
 export class CreateBookingDto {
   @ApiProperty({
     example: '3',
     description: 'ID of the customer pet.',
   })
+  @Transform(({ value }) => toBigIntIdStringIfSafeInteger(value))
   @ValidateBy({
     name: 'isPostgresBigIntId',
     validator: {
@@ -31,6 +33,7 @@ export class CreateBookingDto {
     example: '12',
     description: 'ID of the selected availability slot.',
   })
+  @Transform(({ value }) => toBigIntIdStringIfSafeInteger(value))
   @ValidateBy({
     name: 'isPostgresBigIntId',
     validator: {

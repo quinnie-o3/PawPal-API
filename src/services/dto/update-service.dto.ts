@@ -1,4 +1,4 @@
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsIn,
   IsInt,
@@ -15,6 +15,7 @@ import {
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 import { isPostgresBigIntId } from '../../common/pipes/parse-bigint-id.pipe';
+import { toBigIntIdStringIfSafeInteger, toNumberIfNumericString } from '../../common/utils/strict-input.util';
 
 export class UpdateServiceDto {
   @ApiPropertyOptional({
@@ -22,6 +23,7 @@ export class UpdateServiceDto {
     description: 'Updated service category ID.',
   })
   @ValidateIf((_, value) => value !== undefined)
+  @Transform(({ value }) => toBigIntIdStringIfSafeInteger(value))
   @ValidateBy({
     name: 'isPostgresBigIntId',
     validator: {
@@ -52,7 +54,7 @@ export class UpdateServiceDto {
     minimum: 0,
   })
   @ValidateIf((_, value) => value !== undefined)
-  @Type(() => Number)
+  @Transform(({ value }) => toNumberIfNumericString(value))
   @IsNumber({
     maxDecimalPlaces: 2,
   })
@@ -65,7 +67,7 @@ export class UpdateServiceDto {
     minimum: 1,
   })
   @ValidateIf((_, value) => value !== undefined)
-  @Type(() => Number)
+  @Transform(({ value }) => toNumberIfNumericString(value))
   @IsInt()
   @Min(1)
   @Max(2147483647)

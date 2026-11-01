@@ -5,7 +5,9 @@ import { AuthModule } from '../auth/auth.module';
 import { Provider } from '../providers/entities/provider.entity';
 import { ServiceCategory } from './entities/service-category.entity';
 import { Service } from './entities/service.entity';
+import { PublicServicesController } from './public-services.controller';
 import { ServicesService } from './services.service';
+import { ServiceCategoriesController } from './service-categories.controller';
 import { ServicesController } from './services.controller';
 
 @Module({
@@ -17,7 +19,11 @@ import { ServicesController } from './services.controller';
     ]),
     AuthModule,
   ],
-  controllers: [ServicesController],
+  controllers: [
+    ServicesController,
+    PublicServicesController,
+    ServiceCategoriesController,
+  ],
   providers: [ServicesService],
   exports: [ServicesService],
 })

@@ -47,6 +47,27 @@ export class ServicesService {
     return this.servicesRepository.save(service);
   }
 
+  /**
+   * Public read-only list of service categories available for selection.
+   *
+   * Only ACTIVE entries are returned, projected to `id`, `name` and
+   * `description`. Ordering is by name with an ID tie-breaker so results
+   * are deterministic.
+   */
+  async getActiveServiceCategories() {
+    const categories = await this.serviceCategoriesRepository.find({
+      select: { id: true, name: true, description: true },
+      where: { status: 'ACTIVE' },
+      order: { name: 'ASC', id: 'ASC' },
+    });
+
+    return categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      description: category.description,
+    }));
+  }
+
   async getMyServices(ownerUserId: string) {
     const provider =
       await this.getProviderByOwner(ownerUserId);
@@ -240,7 +261,11 @@ export class ServicesService {
       categoryStatus: 'ACTIVE',
     })
     .orderBy('service.createdAt', 'DESC')
-    .getMany();
+    .addOrderBy('service.id', 'DESC')
+    .getMany()
+    .then((services) =>
+      services.map((service) => this.toPublicServiceResponse(service)),
+    );
 }
 
 async getPublicServiceById(serviceId: string) {
@@ -268,6 +293,38 @@ async getPublicServiceById(serviceId: string) {
     );
   }
 
-  return service;
+  return this.toPublicServiceResponse(service);
+}
+
+/**
+ * Explicit public projection for service discovery.
+ *
+ * Exposes only catalogue data and the provider's business profile
+ * (business name, address, phone, description, rating). Internal fields
+ * such as `provider.ownerId`, `provider.approvalStatus`, service status and
+ * audit timestamps are intentionally omitted.
+ */
+private toPublicServiceResponse(service: Service) {
+  return {
+    id: service.id,
+    name: service.name,
+    description: service.description,
+    price: service.price,
+    durationMinutes: service.durationMinutes,
+    category: {
+      id: service.category.id,
+      name: service.category.name,
+      description: service.category.description,
+    },
+    provider: {
+      id: service.provider.id,
+      businessName: service.provider.businessName,
+      address: service.provider.address,
+      phone: service.provider.phone,
+      description: service.provider.description,
+      ratingAvg: service.provider.ratingAvg,
+      ratingCount: service.provider.ratingCount,
+    },
+  };
 }
 }
