@@ -15,14 +15,10 @@ const AppDataSource = new DataSource({
   synchronize: false,
 
   entities: [
-    join(
-      __dirname,
-      '..',
-      'src',
-      'providers',
-      'entities',
-      '*.entity.{ts,js}',
-    ).replace(/\\/g, '/'),
+    join(__dirname, '..', 'src', '**', '*.entity.{ts,js}').replace(
+      /\\/g,
+      '/',
+    ),
   ],
 
   migrations: [

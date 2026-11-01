@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
@@ -11,6 +11,7 @@ import {
   ApiProperty,
   ApiPropertyOptional,
 } from '@nestjs/swagger';
+import { toNumberIfNumericString } from '../../common/utils/strict-input.util';
 
 export class CreateProviderWorkingHourDto {
   @ApiProperty({
@@ -20,7 +21,7 @@ export class CreateProviderWorkingHourDto {
     minimum: 0,
     maximum: 6,
   })
-  @Type(() => Number)
+  @Transform(({ value }) => toNumberIfNumericString(value))
   @IsInt()
   @Min(0)
   @Max(6)

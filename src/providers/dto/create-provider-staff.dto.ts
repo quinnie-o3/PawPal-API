@@ -3,12 +3,14 @@ import { IsOptional, IsString, MaxLength, ValidateBy } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import { isPostgresBigIntId } from '../../common/pipes/parse-bigint-id.pipe';
+import { toBigIntIdStringIfSafeInteger } from '../../common/utils/strict-input.util';
 
 export class CreateProviderStaffDto {
   @ApiProperty({
     example: '12',
     description: 'User ID of the account to assign as provider staff.',
   })
+  @Transform(({ value }) => toBigIntIdStringIfSafeInteger(value))
   @ValidateBy({
     name: 'isPostgresBigIntId',
     validator: {

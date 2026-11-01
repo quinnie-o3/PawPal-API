@@ -1,6 +1,5 @@
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
-  IsDateString,
   IsIn,
   IsInt,
   IsString,
@@ -13,6 +12,8 @@ import {
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 import { isPostgresBigIntId } from '../../common/pipes/parse-bigint-id.pipe';
+import { toBigIntIdStringIfSafeInteger, toNumberIfNumericString } from '../../common/utils/strict-input.util';
+import { IsCalendarDate } from '../../common/utils/calendar-date.util';
 
 export class UpdateAvailabilitySlotDto {
   @ApiPropertyOptional({
@@ -20,6 +21,7 @@ export class UpdateAvailabilitySlotDto {
     description: 'Updated service ID.',
   })
   @ValidateIf((_, value) => value !== undefined)
+  @Transform(({ value }) => toBigIntIdStringIfSafeInteger(value))
   @ValidateBy({
     name: 'isPostgresBigIntId',
     validator: {
@@ -37,7 +39,7 @@ export class UpdateAvailabilitySlotDto {
     format: 'date',
   })
   @ValidateIf((_, value) => value !== undefined)
-  @IsDateString()
+  @IsCalendarDate()
   slotDate?: string;
 
   @ApiPropertyOptional({
@@ -65,7 +67,7 @@ export class UpdateAvailabilitySlotDto {
     minimum: 1,
   })
   @ValidateIf((_, value) => value !== undefined)
-  @Type(() => Number)
+  @Transform(({ value }) => toNumberIfNumericString(value))
   @IsInt()
   @Min(1)
   @Max(2147483647)

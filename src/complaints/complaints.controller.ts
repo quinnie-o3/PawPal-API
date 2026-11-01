@@ -43,7 +43,8 @@ export class ComplaintsController {
   })
   @ApiCreatedResponse({ description: 'Complaint created successfully.' })
   @ApiBadRequestResponse({
-    description: 'Booking ID or complaint reason is invalid.',
+    description:
+      'Booking ID is invalid, or reason is missing, not a string, empty after trimming, or longer than 2000 characters.',
   })
   @ApiUnauthorizedResponse({ description: 'Authentication is required.' })
   @ApiForbiddenResponse({

@@ -1,6 +1,5 @@
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
-  IsDateString,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -16,12 +15,15 @@ import {
 } from '@nestjs/swagger';
 
 import { isPostgresBigIntId } from '../../common/pipes/parse-bigint-id.pipe';
+import { toBigIntIdStringIfSafeInteger, toNumberIfNumericString } from '../../common/utils/strict-input.util';
+import { IsCalendarDate, IsNotFutureCalendarDate } from '../../common/utils/calendar-date.util';
 
 export class CreatePetDto {
   @ApiProperty({
     example: '1',
     description: 'ID of the pet type.',
   })
+  @Transform(({ value }) => toBigIntIdStringIfSafeInteger(value))
   @ValidateBy({
     name: 'isPostgresBigIntId',
     validator: {
@@ -66,11 +68,12 @@ export class CreatePetDto {
 
   @ApiPropertyOptional({
     example: '2023-05-20',
-    description: 'Pet date of birth in YYYY-MM-DD format.',
+    description: 'Pet date of birth in YYYY-MM-DD format. Cannot be in the future.',
     format: 'date',
   })
   @IsOptional()
-  @IsDateString()
+  @IsCalendarDate()
+  @IsNotFutureCalendarDate()
   birthDate?: string;
 
   @ApiPropertyOptional({
@@ -78,7 +81,7 @@ export class CreatePetDto {
     description: 'Pet weight. Must be greater than 0.',
   })
   @IsOptional()
-  @Type(() => Number)
+  @Transform(({ value }) => toNumberIfNumericString(value))
   @IsNumber({
     maxDecimalPlaces: 2,
   })

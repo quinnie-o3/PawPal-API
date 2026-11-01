@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
@@ -8,6 +8,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { toNumberIfNumericString } from '../../common/utils/strict-input.util';
 
 export class UpdateProviderWorkingHourDto {
   @ApiPropertyOptional({
@@ -18,7 +19,7 @@ export class UpdateProviderWorkingHourDto {
       'Day of week. 0 = Sunday, 1 = Monday, ..., 6 = Saturday.',
   })
   @ValidateIf((_, value) => value !== undefined)
-  @Type(() => Number)
+  @Transform(({ value }) => toNumberIfNumericString(value))
   @IsInt()
   @Min(0)
   @Max(6)

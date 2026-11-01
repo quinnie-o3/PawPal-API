@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
+import { assertStartTimeBeforeEndTime } from '../common/utils/time-of-day.util';
 import { Provider } from '../providers/entities/provider.entity';
 import { Service } from '../services/entities/service.entity';
 import { CreateAvailabilitySlotDto } from './dto/create-availability-slot.dto';
@@ -136,25 +137,76 @@ export class AvailabilityService {
     const provider =
       await this.getProviderByOwner(ownerUserId);
 
-    const slot =
-      await this.availabilitySlotsRepository.findOne({
-        where: {
-          id: slotId,
+    try {
+      return await this.availabilitySlotsRepository.manager.transaction(
+        async (manager) => {
+          const slotsRepository =
+            manager.getRepository(AvailabilitySlot);
+
+          // Same row lock as booking reservation/cancellation, so capacity
+          // checks see the latest bookedCount and cannot interleave with
+          // a concurrent booking.
+          const slot = await this.findLockedSlot(
+            slotsRepository,
+            slotId,
+          );
+
+          if (slot.providerId !== provider.id) {
+            throw new ForbiddenException(
+              'You do not have permission to update this availability slot',
+            );
+          }
+
+          const changes = await this.buildSlotUpdate(
+            provider.id,
+            slot,
+            dto,
+          );
+
+          // Partial UPDATE: bookedCount is owned by booking flows and is
+          // never written from here.
+          await slotsRepository.update({ id: slot.id }, changes);
+
+          return slotsRepository.findOneOrFail({
+            where: { id: slot.id },
+          });
         },
-      });
-
-    if (!slot) {
-      throw new NotFoundException(
-        'Availability slot not found',
       );
-    }
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === '23505'
+      ) {
+        throw new ConflictException(
+          'An identical availability slot already exists',
+        );
+      }
 
-    if (slot.providerId !== provider.id) {
-      throw new ForbiddenException(
-        'You do not have permission to update this availability slot',
-      );
+      throw error;
     }
+  }
 
+  /**
+   * Validates a slot update against the locked slot row and returns only
+   * the provider-editable columns to persist.
+   */
+  private async buildSlotUpdate(
+    providerId: string,
+    slot: AvailabilitySlot,
+    dto: UpdateAvailabilitySlotDto,
+  ): Promise<
+    Pick<
+      AvailabilitySlot,
+      | 'serviceId'
+      | 'slotDate'
+      | 'startTime'
+      | 'endTime'
+      | 'capacity'
+      | 'status'
+    >
+  > {
     const scheduleChanged =
       dto.serviceId !== undefined ||
       dto.slotDate !== undefined ||
@@ -191,7 +243,7 @@ export class AvailabilityService {
 
     if (dto.serviceId !== undefined) {
       await this.assertOwnedActiveService(
-        provider.id,
+        providerId,
         nextServiceId,
       );
     }
@@ -206,39 +258,19 @@ export class AvailabilityService {
     }
 
     if (nextCapacity < slot.bookedCount) {
-      throw new BadRequestException(
+      throw new ConflictException(
         'capacity cannot be lower than bookedCount',
       );
     }
 
-    slot.serviceId = nextServiceId;
-    slot.slotDate = nextSlotDate;
-    slot.startTime = nextStartTime;
-    slot.endTime = nextEndTime;
-    slot.capacity = nextCapacity;
-
-    if (dto.status !== undefined) {
-      slot.status = dto.status;
-    }
-
-    try {
-      return await this.availabilitySlotsRepository.save(
-        slot,
-      );
-    } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === '23505'
-      ) {
-        throw new ConflictException(
-          'An identical availability slot already exists',
-        );
-      }
-
-      throw error;
-    }
+    return {
+      serviceId: nextServiceId,
+      slotDate: nextSlotDate,
+      startTime: nextStartTime,
+      endTime: nextEndTime,
+      capacity: nextCapacity,
+      status: dto.status ?? slot.status,
+    };
   }
 
   async deactivateMySlot(
@@ -248,12 +280,40 @@ export class AvailabilityService {
     const provider =
       await this.getProviderByOwner(ownerUserId);
 
-    const slot =
-      await this.availabilitySlotsRepository.findOne({
-        where: {
-          id: slotId,
-        },
-      });
+    await this.availabilitySlotsRepository.manager.transaction(
+      async (manager) => {
+        const slotsRepository =
+          manager.getRepository(AvailabilitySlot);
+        const slot = await this.findLockedSlot(
+          slotsRepository,
+          slotId,
+        );
+
+        if (slot.providerId !== provider.id) {
+          throw new ForbiddenException(
+            'You do not have permission to deactivate this availability slot',
+          );
+        }
+
+        // Soft deactivate. Never delete booking-related slot history.
+        // Only status is written so a concurrent bookedCount is preserved.
+        await slotsRepository.update(
+          { id: slot.id },
+          { status: 'CANCELLED' },
+        );
+      },
+    );
+  }
+
+  private async findLockedSlot(
+    slotsRepository: Repository<AvailabilitySlot>,
+    slotId: string,
+  ): Promise<AvailabilitySlot> {
+    const slot = await slotsRepository
+      .createQueryBuilder('slot')
+      .setLock('pessimistic_write')
+      .where('slot.id = :slotId', { slotId })
+      .getOne();
 
     if (!slot) {
       throw new NotFoundException(
@@ -261,18 +321,7 @@ export class AvailabilityService {
       );
     }
 
-    if (slot.providerId !== provider.id) {
-      throw new ForbiddenException(
-        'You do not have permission to deactivate this availability slot',
-      );
-    }
-
-    // Soft deactivate. Never delete booking-related slot history.
-    slot.status = 'CANCELLED';
-
-    await this.availabilitySlotsRepository.save(
-      slot,
-    );
+    return slot;
   }
 
   private async getProviderByOwner(
@@ -330,11 +379,9 @@ export class AvailabilityService {
     startTime: string,
     endTime: string,
   ): void {
-    if (startTime >= endTime) {
-      throw new BadRequestException(
-        'startTime must be earlier than endTime',
-      );
-    }
+    // Request values use HH:mm while persisted TIME values use HH:mm:ss,
+    // so the range must be compared chronologically, not as strings.
+    assertStartTimeBeforeEndTime(startTime, endTime);
   }
 
   private assertDateNotInPast(
@@ -384,7 +431,9 @@ export class AvailabilityService {
     })
     .orderBy('slot.slotDate', 'ASC')
     .addOrderBy('slot.startTime', 'ASC')
-    .getMany();
+    .addOrderBy('slot.id', 'ASC')
+    .getMany()
+    .then((slots) => slots.map((slot) => this.toPublicSlotResponse(slot)));
 }
 
 async getPublicSlotById(slotId: string) {
@@ -422,7 +471,46 @@ async getPublicSlotById(slotId: string) {
     );
   }
 
-  return slot;
+  return this.toPublicSlotResponse(slot);
+}
+
+/**
+ * Explicit public projection for slot discovery, shared by list and detail.
+ *
+ * Exposes scheduling, capacity, catalogue data and the provider's public
+ * business profile. Internal fields such as `provider.ownerId`,
+ * `provider.approvalStatus`, foreign keys, statuses and audit timestamps are
+ * omitted, as is `provider.phone` pending a public contact-data policy.
+ */
+private toPublicSlotResponse(slot: AvailabilitySlot) {
+  return {
+    id: slot.id,
+    slotDate: slot.slotDate,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    capacity: slot.capacity,
+    bookedCount: slot.bookedCount,
+    service: {
+      id: slot.service.id,
+      name: slot.service.name,
+      description: slot.service.description,
+      price: slot.service.price,
+      durationMinutes: slot.service.durationMinutes,
+      category: {
+        id: slot.service.category.id,
+        name: slot.service.category.name,
+        description: slot.service.category.description,
+      },
+    },
+    provider: {
+      id: slot.provider.id,
+      businessName: slot.provider.businessName,
+      address: slot.provider.address,
+      description: slot.provider.description,
+      ratingAvg: slot.provider.ratingAvg,
+      ratingCount: slot.provider.ratingCount,
+    },
+  };
 }
 
 private getTodayDateString(): string {

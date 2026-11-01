@@ -57,3 +57,7 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# PostgreSQL database backups (pg_dump output) — may contain sensitive data
+pet_care_db_before_activity_logs.backup
+/*.backup
